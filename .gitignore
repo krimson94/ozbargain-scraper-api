@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv
+
+# Test file outputs
+response*.txt
+*.html
