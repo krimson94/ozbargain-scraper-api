@@ -20,23 +20,26 @@ def fetch_deal(node_id: int):
     
     title_tag = soup.find('h1', id='title')
     title = title_tag.text.strip() if title_tag else "N/A"
+    ozbdeal = soup.find('div', class_='node-ozbdeal')
     
-    content_div = soup.find('div', class_='content')
-    description = content_div.get_text(separator=" ", strip=True) if content_div else ""
+    description_tag = soup.find('div', class_='content')
+    description = description_tag.get_text(separator=" ", strip=True) if description_tag else ""
     
-    vote_up_tag = soup.find('span', class_='voteup')
-    vote_down_tag = soup.find('span', class_='votedown')
+    vote_up_tag = ozbdeal.find('span', class_='voteup')
+    vote_down_tag = ozbdeal.find('span', class_='votedown')
     vote_up = vote_up_tag.text.strip() if vote_up_tag else "0"
     vote_down = vote_down_tag.text.strip() if vote_down_tag else "0"
     
+    submitted_tag = ozbdeal.find('div', class_='submitted')
+    date_time = get_date(submitted_tag)
     comments = []
 
     root_uls = soup.find_all('ul', class_='comment level0')
 
     for root_ul in root_uls:
         comments.extend(parse_comments_recursive(root_ul))
+    total_comments = count_total_comments(comments)
 
-    # TODO: Get Date
     return {
         "node_id": node_id,
         "url": url,
@@ -44,13 +47,13 @@ def fetch_deal(node_id: int):
         "upvotes": vote_up,
         "downvotes": vote_down,
         "description": description,
-        "comments_count": len(comments),
+        "date_submitted": date_time,
+        "comments_count": total_comments,
         "comments": comments
     }, 200
 
 def parse_comments_recursive(ul_node):
     results = []
-    # Use find_children to only process direct children of the current <ul>
     for li in ul_node.find_all('li', recursive=False):
         
         wrap = li.find('div', class_='comment-wrap')
@@ -62,7 +65,8 @@ def parse_comments_recursive(ul_node):
         
         body_tag = wrap.find('div', class_='content')
         body = body_tag.get_text(separator=" ", strip=True) if body_tag else ""
-        
+        submitted_tag = wrap.find('div', class_='submitted')
+        date_time = get_date(submitted_tag)
         nested_ul = li.find('ul', class_='comment')
         children = []
         if nested_ul:
@@ -71,10 +75,17 @@ def parse_comments_recursive(ul_node):
         results.append({
             "author": author,
             "comment": body,
+            "date": date_time,
             "children": children
         })
     return results
 
+def count_total_comments(comment_list):
+    count = 0
+    for comment in comment_list:
+        count += 1  # Count the comment itself
+        count += count_total_comments(comment.get("children", [])) # Count its children
+    return count
 
 # TODO: New Deals
 def fetch_new_deals():
@@ -106,11 +117,7 @@ def fetch_new_deals():
         expiry_date = "N/A"
 
         submitted_tag = node.find('div', class_='submitted')
-        submitted = submitted_tag.text.strip() if submitted_tag else "N/A"
-        date_time_match = re.search(r'(\d{2}/\d{2}/\d{4}\s+-\s+\d{2}:\d{2})', submitted)
-        if date_time_match:
-            date_str = date_time_match.group(1)
-            date_time = datetime.strptime(date_str, "%d/%m/%Y - %H:%M")
+        date_time = get_date(submitted_tag)
 
         img_tag = node.find('div', class_='foxshot-container').find('img').get('src')
         img_url = img_tag if img_tag else ""
@@ -135,3 +142,11 @@ def output_request(response):
     filename = f"response_{date_str}.html"
     with open(filename, "w", encoding="utf-8") as f:
         f.write(response)
+
+def get_date(submitted_tag: string):
+    submitted = submitted_tag.text.strip() if submitted_tag else "N/A"
+    date_time_match = re.search(r'(\d{2}/\d{2}/\d{4}\s+-\s+\d{2}:\d{2})', submitted)
+    if date_time_match:
+        date_str = date_time_match.group(1)
+        date_time = datetime.strptime(date_str, "%d/%m/%Y - %H:%M")
+    return date_time
