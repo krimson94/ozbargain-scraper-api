@@ -8,5 +8,5 @@ router = APIRouter(prefix="",tags=["Deals"])
 def new_deals():
     data, status_code = fetch_new_deals()
     if status_code != 200:
-        raise HTTPException(status_code=status_code, detail="Deal not found or blocked by Ozbargain.")
+        raise HTTPException(status_code=status_code, detail="Failed to load new deals.")
     return data
