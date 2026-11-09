@@ -33,13 +33,13 @@ def fetch_deal(node_id: int):
     submitted_tag = ozbdeal.find('div', class_='submitted')
     date_time = get_date(submitted_tag)
     comments = []
-
+    
     root_uls = soup.find_all('ul', class_='comment level0')
-
+    
     for root_ul in root_uls:
         comments.extend(parse_comments_recursive(root_ul))
     total_comments = count_total_comments(comments)
-
+    
     return {
         "node_id": node_id,
         "url": url,
@@ -75,7 +75,7 @@ def parse_comments_recursive(ul_node):
         results.append({
             "author": author,
             "comment": body,
-            "date": date_time,
+            "date_submitted": date_time,
             "children": children
         })
     return results
@@ -100,9 +100,9 @@ def fetch_new_deals():
     
     soup = BeautifulSoup(response.text, 'html.parser')
     deals = []
-
+    
     output_request(response.text)
-
+    
     for node in soup.select('div.node'):
         title_tag = node.find('h2', class_='title')
         title = title_tag.text.strip() if title_tag else "N/A"
@@ -115,10 +115,10 @@ def fetch_new_deals():
         comments_count = "0"
         tags = []
         expiry_date = "N/A"
-
+        
         submitted_tag = node.find('div', class_='submitted')
         date_time = get_date(submitted_tag)
-
+    
         img_tag = node.find('div', class_='foxshot-container').find('img').get('src')
         img_url = img_tag if img_tag else ""
         if img_url.startswith("/"):
@@ -128,7 +128,7 @@ def fetch_new_deals():
             "title": title,
             "link": link,
             "description": description,
-            "date_posted": date_time,
+            "date_submitted": date_time,
             "image_url": img_url
         })
         
@@ -136,17 +136,24 @@ def fetch_new_deals():
 
 # TODO: Search Deal
 
-def output_request(response):
+def output_request(response: str):
     # Export response to text file
     date_str = datetime.now().strftime("%Y-%m-%d")
     filename = f"response_{date_str}.html"
     with open(filename, "w", encoding="utf-8") as f:
         f.write(response)
 
-def get_date(submitted_tag: string):
-    submitted = submitted_tag.text.strip() if submitted_tag else "N/A"
-    date_time_match = re.search(r'(\d{2}/\d{2}/\d{4}\s+-\s+\d{2}:\d{2})', submitted)
+def get_date(submitted_tag):
+    submitted = submitted_tag.text.strip() if submitted_tag else ""
+    # Relaxed regex to allow for different separators or extra spaces
+    date_time_match = re.search(r'(\d{2}/\d{2}/\d{4})\s*[-]?\s*(\d{2}:\d{2})', submitted)
+    
     if date_time_match:
-        date_str = date_time_match.group(1)
-        date_time = datetime.strptime(date_str, "%d/%m/%Y - %H:%M")
-    return date_time
+        date_part = date_time_match.group(1)
+        time_part = date_time_match.group(2)
+        try:
+            return datetime.strptime(f"{date_part} {time_part}", "%d/%m/%Y %H:%M")
+        except ValueError:
+            pass
+            
+    return datetime(1970, 1, 1)  # Default fallback
